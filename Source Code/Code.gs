@@ -1,20 +1,16 @@
 // =============================
-// ✅ FINAL Code.gs (Sabhi Fixes Ke Saath)
+// ✅ FINAL Code.gs (Updated for v5 Fields)
 // =============================
 
-/**
- * ✅ YEH NAYA FUNCTION HAI
- * Jab koi aapke Web App URL ko kholega, toh yeh function HTML page dikhayega.
- */
+const SHEET_ID = "1rt1-OgNmACT4zro2gSZjNDUB83V3hfvDTNMSzEqBFfA";
+const SHEET_NAME = "GatePassLog";
+
 function doGet(e) {
-  return HtmlService.createHtmlOutputFromFile('index') // 'index.html' file ko serve karega
+  return HtmlService.createHtmlOutputFromFile('index')
       .setTitle("GWTPL Gate Pass")
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-/**
- * Helper function date format karne ke liye
- */
 function toYYYYMMDD(date) {
   if (!date) return "";
   try {
@@ -29,138 +25,164 @@ function toYYYYMMDD(date) {
   }
 }
 
-/**
- * ✅ NAYA FUNCTION: AGLA GATE PASS NUMBER FETCH KARNE KE LIYE
- * Is function ko 'index.html' page load hote hi call karega.
- */
+function getSheetHelper() {
+  var ss;
+  try {
+    ss = SpreadsheetApp.openById(SHEET_ID);
+  } catch(e) {
+    // Fallback: Agar ID galat ho toh Active Sheet use karein
+    try {
+      ss = SpreadsheetApp.getActiveSpreadsheet();
+    } catch(err) {
+      throw new Error("Spreadsheet ID galat hai ya permission nahi hai.");
+    }
+  }
+
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+    sheet.appendRow([
+      "Gate Pass No", // A
+      "Date",         // B
+      "Consignor",    // C
+      "Person",       // D
+      "Vehicle",      // E
+      "Auth Person",  // F
+      "Type",         // G
+      "Items JSON",   // H
+      "Auth Name1",   // I
+      "Auth Desig1",  // J
+      "Remarks",      // K
+      "Mobile",       // L
+      "Site to Site", // M
+      "Auth Name2",   // N (New)
+      "Auth Desig2",  // O (New)
+      "Outward No",   // P (New)
+      "Inward No",    // Q (New)
+      "Security Date",// R (New)
+      "Timestamp"     // S
+    ]);
+  }
+  return sheet;
+}
+
+// === YEAR RESET LOGIC IS HERE ===
 function getNextGatePassNumber() {
   try {
-    const sheet = SpreadsheetApp.openById("1rt1-OgNmACT4zro2gSZjNDUB83V3hfvDTNMSzEqBFfA").getSheetByName("GatePassLog");
+    const sheet = getSheetHelper();
     const prefix = "GWTPL/ABO";
-  	const currentYear = new Date().getFullYear(); // e.g., 2025
-  	const lastRow = sheet.getLastRow();
-  	let nextNum = 1;
+    const currentYear = new Date().getFullYear(); 
+    const lastRow = sheet.getLastRow();
+    let nextNum = 1;
 
-  	if (lastRow > 1) {
-  	  const lastGP = sheet.getRange(lastRow, 1).getValue(); // e.g., "GWTPL/ABO/2025/0001"
-  	  const parts = String(lastGP).split('/');
-  	  
-      // ✅ GATE PASS LOGIC
-  	  if (parts.length === 4 && parseInt(parts[2], 10) === currentYear) {
-  		nextNum = parseInt(parts[3], 10) + 1;
-  	  }
-  	}
-  	const newGP = `${prefix}/${currentYear}/${String(nextNum).padStart(4, "0")}`;
-    return newGP; // Sirf naya number bhejega
-
+    if (lastRow > 1) {
+      const lastGP = sheet.getRange(lastRow, 1).getValue(); 
+      const parts = String(lastGP).split('/');
+      
+      // Agar pichla GP usi saal ka hai, toh count badhao
+      if (parts.length === 4 && parseInt(parts[2], 10) === currentYear) {
+        nextNum = parseInt(parts[3], 10) + 1;
+      }
+      // Agar saal alag hai (New Year), toh nextNum 1 hi rahega (Reset)
+    }
+    
+    return `${prefix}/${currentYear}/${String(nextNum).padStart(4, "0")}`;
   } catch (e) {
     return "Error: " + e.message;
   }
 }
 
-
-/**
- * ✅ YEH FUNCTION HAI DATA SAVE KARNE KE LIYE
- */
 function saveData(data) {
-  try {
-  	const sheet = SpreadsheetApp.openById("1rt1-OgNmACT4zro2gSZjNDUB83V3hfvDTNMSzEqBFfA").getSheetByName("GatePassLog");
+  try {
+    const sheet = getSheetHelper();
+    const prefix = "GWTPL/ABO";
+    const currentYear = new Date().getFullYear();
+    const lastRow = sheet.getLastRow();
+    let nextNum = 1;
 
-  	const prefix = "GWTPL/ABO";
-  	const currentYear = new Date().getFullYear(); // e.g., 2025
-  	const lastRow = sheet.getLastRow();
-  	let nextNum = 1;
+    // Same Year Check Logic for Saving
+    if (lastRow > 1) {
+      const lastGP = sheet.getRange(lastRow, 1).getValue(); 
+      const parts = String(lastGP).split('/');
+      if (parts.length === 4 && parseInt(parts[2], 10) === currentYear) {
+        nextNum = parseInt(parts[3], 10) + 1;
+      }
+    }
 
-  	if (lastRow > 1) {
-  	  const lastGP = sheet.getRange(lastRow, 1).getValue(); 
-  	  const parts = String(lastGP).split('/');
-  	  if (parts.length === 4 && parseInt(parts[2], 10) === currentYear) {
-  		nextNum = parseInt(parts[3], 10) + 1;
-  	  }
-  	}
-
-  	const newGP = `${prefix}/${currentYear}/${String(nextNum).padStart(4, "0")}`;
-  	
-    /**
-     * ========================================
-     * ✅ **BADLAV 1 (GS): Mobile No. save karna**
-     * Naya `data.person_mobile` Column L mein save ho raha hai.
-     * ========================================
-     */
-  	const rowData = [
-  	  newGP, 					// Column A
-  	  data.date || "", 		 	// Column B
-  	  data.consignor || "", 	// Column C
-  	  data.person_carrying || "", // Column D
-  	  data.vehicle_no || "", 	// Column E
-  	  data.auth_person || "", 	// Column F
-  	  data.type || "", 		 	// Column G
-  	  JSON.stringify(data.items || []), // Column H
-  	  data.authName1 || "", 	// Column I
-  	  data.authDesig1 || "", 	// Column J
-  	  data.remarks || "", 	 	// Column K
-      data.person_mobile || "", // **NAYA FIELD (Column L)**
-  	  new Date() 				// Column M (Timestamp)
-  	];
-
-  	sheet.appendRow(rowData);
-  	return { success: true, gate_pass_no: newGP };
+    const newGP = `${prefix}/${currentYear}/${String(nextNum).padStart(4, "0")}`;
     
-  } catch (err) {
-  	return { success: false, error: err.message };
-  }
+    // Updated Row Data with New Fields
+    const rowData = [
+      newGP,                  
+      data.date || "",            
+      data.consignor || "",   
+      data.person_carrying || "", 
+      data.vehicle_no || "",    
+      data.auth_person || "",   
+      data.type || "",          
+      JSON.stringify(data.items || []), 
+      data.authName1 || "",     
+      data.authDesig1 || "",    
+      data.remarks || "",       
+      data.person_mobile || "", 
+      data.is_site_to_site || false,
+      data.authName2 || "",     // New
+      data.authDesig2 || "",    // New
+      data.outward1 || "",      // New
+      data.inward2 || "",       // New
+      data.secDate1 || "",      // New
+      new Date()                
+    ];
+
+    sheet.appendRow(rowData);
+    return { success: true, gate_pass_no: newGP };
+    
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
 
-/**
- * ✅ YEH FUNCTION HAI PURANA DATA FETCH KARNE KE LIYE
- */
 function fetchRecord(gpNo) {
-  try {
-  	const sheet = SpreadsheetApp.openById("1rt1-OgNmACT4zro2gSZjNDUB83V3hfvDTNMSzEqBFfA").getSheetByName("GatePassLog");
+  try {
+    const sheet = getSheetHelper();
+    if (!gpNo) return { success: false, error: "Missing GP No" };
 
-  	if (!gpNo) {
-  	  return { success: false, error: "Missing gp_no parameter" };
-  	}
+    const data = sheet.getDataRange().getValues();
+    let found = null;
 
-  	const data = sheet.getDataRange().getValues();
-  	let found = null;
+    // Loop to find GP Number (Column A is Index 0)
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === gpNo.trim()) {
+        found = data[i];
+        break;
+      }
+    }
 
-  	for (let i = 1; i < data.length; i++) {
-  	  if (String(data[i][0]).trim() === gpNo.trim()) {
-  		found = data[i];
-  		break;
-  	  }
-  	}
+    if (!found) return { success: false, error: "Record not found" };
 
-  	if (!found) {
-  	  return { success: false, error: "Record not found" };
-  	}
-
-    /**
-     * ========================================
-     * ✅ **BADLAV 2 (GS): Mobile No. fetch karna**
-     * Naya `person_mobile` Column L (index 11) se aa raha hai.
-     * ========================================
-     */
-  	const record = {
-  	  gate_pass_no: found[0], 	// Col A
-  	  date: toYYYYMMDD(found[1]), // Col B (Bug fixed)
-  	  consignor: found[2], 		// Col C
-  	  person_carrying: found[3], // Col D
-  	  vehicle_no: found[4], 	// Col E
-  	  authorised_person: found[5], // Col F
-  	  type: found[6], 			// Col G
-  	  items: found[7], 			// Col H
-	  authName1: found[8] || "", 	// Col I (index 8)
-	  authDesig1: found[9] || "", 	// Col J (index 9)
-  	  remarks: found[10] || "", 	// Col K (index 10)
-      person_mobile: found[11] || "", // **NAYA FIELD (Col L, index 11)**
-  	  success: true,
-  	};
-    
-    return record;
-    
-  } catch (err) {
-  	return { success: false, error: err.message };
-  }
+    return {
+      gate_pass_no: found[0],   
+      date: toYYYYMMDD(found[1]), 
+      consignor: found[2],    
+      person_carrying: found[3], 
+      vehicle_no: found[4],   
+      authorised_person: found[5], 
+      type: found[6],        
+      items: found[7],       
+      authName1: found[8] || "",    
+      authDesig1: found[9] || "",    
+      remarks: found[10] || "",    
+      person_mobile: found[11] || "", 
+      is_site_to_site: found[12],
+      authName2: found[13] || "", // New Fetch
+      authDesig2: found[14] || "", // New Fetch
+      outward1: found[15] || "",    // New Fetch
+      inward2: found[16] || "",     // New Fetch
+      secDate1: toYYYYMMDD(found[17]), // New Fetch
+      success: true,
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 }
