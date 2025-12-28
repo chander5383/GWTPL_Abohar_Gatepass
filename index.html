@@ -157,17 +157,32 @@ const errorEl=document.getElementById("modal-error");
 const toggleEye=document.getElementById("toggle-eye");
 const closeModal=document.getElementById("close-modal");
 
-function startRedirect(){redirectTimeout=setTimeout(()=>{if(redirectEnabled)window.location.assign(redirectURL)},1200);}
+// Redirect Logic
+function startRedirect(){
+  redirectTimeout=setTimeout(()=>{
+    if(redirectEnabled) window.location.assign(redirectURL)
+  },1200);
+}
 function stopRedirect(){redirectEnabled=false;clearTimeout(redirectTimeout);}
 
-openBtn.addEventListener("click",()=>{stopRedirect();backdrop.classList.add("visible");input.value="";errorEl.textContent="";attempts=0;input.disabled=false;submitBtn.disabled=false;toggleEye.style.display="inline";input.focus();});
+openBtn.addEventListener("click",()=>{
+  stopRedirect(); // Stop redirect when entering password
+  backdrop.classList.add("visible");
+  input.value="";
+  errorEl.textContent="";
+  attempts=0;
+  input.disabled=false;
+  submitBtn.disabled=false;
+  toggleEye.style.display="inline";
+  input.focus();
+});
 
 function closeModalAction(){
   backdrop.classList.add("fade-out");
   setTimeout(()=>{
     backdrop.classList.remove("fade-out","visible");
     redirectEnabled=true;
-    startRedirect();
+    startRedirect(); // Resume redirect if canceled
   },300);
 }
 cancelBtn.addEventListener("click",closeModalAction);
@@ -177,11 +192,70 @@ document.addEventListener("keydown",function(e){
   if(e.key==="Escape" && backdrop.classList.contains("visible")) closeModalAction();
 });
 
-submitBtn.addEventListener("click",()=>{if(attempts>=MAX_ATTEMPTS){return;}if(input.value===LOGS_PASSWORD){redirectEnabled=false;backdrop.classList.remove("visible");preloader.classList.remove("hidden");preloader.querySelector("h3").textContent="Access Granted...";successBox.classList.remove("visible");setTimeout(()=>{preloader.classList.add("hidden");successBox.classList.add("visible");setTimeout(()=>{window.open(LOGS_URL,"_blank");},1500);},800);}else{attempts++;const left=MAX_ATTEMPTS-attempts;if(left>0){errorEl.textContent=`Incorrect password. ${left} attempt(s) left.`;}else{let countdown=UNLOCK_DELAY;errorEl.textContent=`Access blocked. Wait ${countdown}s…`;input.disabled=true;submitBtn.disabled=true;toggleEye.style.display="none";const timer=setInterval(()=>{countdown--;if(countdown>0){errorEl.textContent=`Access blocked. Wait ${countdown}s…`;}else{clearInterval(timer);attempts=0;input.disabled=false;submitBtn.disabled=false;toggleEye.style.display="inline";errorEl.textContent="";}},1000);}}});
+submitBtn.addEventListener("click",()=>{
+  if(attempts>=MAX_ATTEMPTS){return;}
+  
+  if(input.value===LOGS_PASSWORD){
+    // Access Granted
+    redirectEnabled=false;
+    backdrop.classList.remove("visible");
+    preloader.classList.remove("hidden");
+    preloader.querySelector("h3").textContent="Access Granted...";
+    successBox.classList.remove("visible");
+
+    setTimeout(()=>{
+      preloader.classList.add("hidden");
+      successBox.classList.add("visible");
+      
+      setTimeout(()=>{
+        // 1. Open Logs in New Tab
+        window.open(LOGS_URL,"_blank");
+        
+        // 2. Resume Redirect in THIS Tab immediately after
+        redirectEnabled = true;
+        startRedirect(); 
+      },1500);
+    },800);
+  } else {
+    // Incorrect Password Logic
+    attempts++;
+    const left=MAX_ATTEMPTS-attempts;
+    if(left>0){
+      errorEl.textContent=`Incorrect password. ${left} attempt(s) left.`;
+    }else{
+      let countdown=UNLOCK_DELAY;
+      errorEl.textContent=`Access blocked. Wait ${countdown}s…`;
+      input.disabled=true;
+      submitBtn.disabled=true;
+      toggleEye.style.display="none";
+      const timer=setInterval(()=>{
+        countdown--;
+        if(countdown>0){
+          errorEl.textContent=`Access blocked. Wait ${countdown}s…`;
+        }else{
+          clearInterval(timer);
+          attempts=0;
+          input.disabled=false;
+          submitBtn.disabled=false;
+          toggleEye.style.display="inline";
+          errorEl.textContent="";
+        }
+      },1000);
+    }
+  }
+});
+
 input.addEventListener("keydown",e=>{if(e.key==="Enter")submitBtn.click();});
 toggleEye.addEventListener("click",()=>{const type=input.getAttribute("type")==="password"?"text":"password";input.setAttribute("type",type);toggleEye.textContent=type==="password"?"👁️":"🙈";});
 
-setTimeout(()=>{preloader.classList.add("hidden");setTimeout(()=>{successBox.classList.add("visible");startRedirect();},600);},2000);
+// Start lifecycle
+setTimeout(()=>{
+  preloader.classList.add("hidden");
+  setTimeout(()=>{
+    successBox.classList.add("visible");
+    startRedirect();
+  },600);
+},2000);
 </script>
 </body>
 </html>
